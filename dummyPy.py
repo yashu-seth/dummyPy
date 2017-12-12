@@ -110,3 +110,36 @@ class OneHotEncoder():
 						    else data[column_name].values.reshape(-1, 1)
 						    for column_name in data.columns]
 		return(np.array(np.concatenate(transformed_data, axis=1)))
+
+	def fit_transform(self, file_path, chunksize=1000, **kwargs):
+		"""
+		This method calls fit and transform one after the other.
+		Please note that the transform method takes a data parameter as
+		input but fit_transform uses the file path given to it for the fit
+		part as input parameter for the transform part.
+		This method is not suitable for data that cannot be fit into memory
+		as the transform part of this method works on the entire dataset.
+		It works well and can be used as a shortcut for smaller datasets.
+
+		Parameters
+		----------
+
+		file_path: string
+			The file path of the data that is to be read in chunks.
+
+		chunksize: integer, default = 1000
+			The size of the invidual chunk which have to be read all
+			at once in the memory. Care must be taken to ensure that the size
+			of an individual chunk does not exceed the available memory.
+			For details, refer chunksize parameter of pandas.read_csv.
+
+		kwargs:
+			The other parameters of the read_csv method in pandas.
+			For example, you can use the usecols parameter to read only particular columns
+			of your data. 
+		"""
+		self.fit(file_path=file_path, chunksize=chunksize, **kwargs)
+		
+		# Note that there is no chunksize parameter being used.
+		data = pd.read_csv(file_path, dtype=str, keep_default_na=False, **kwargs)
+		return(self.transform(data))
