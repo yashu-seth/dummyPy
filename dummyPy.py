@@ -2,39 +2,40 @@ from collections import defaultdict
 
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import LabelBinarizer
+from sklearn.preprocessing import CategoricalEncoder
 
 
 class OneHotEncoder():
 	"""
 	A One Hot Encoder class that converts the categorical variables in a data frame
 	to one hot encoded variables. It can also handle large data that is too big to fit
-	in the memory by reading the the data in chunks.
+	in the memory by reading the data in chunks.
 
 	Example
 	-------
-	The following example uses the kaggle's titanic data. It can found here -
+	The following example uses the kaggle's titanic data. It can be found here -
 	`https://www.kaggle.com/c/titanic/data`
 
 	This data is only 60 KB and it has only been used for a demonstration purpose.
 	The actual use of this class is for datasets that cannot fit into memory.  
 
-	>>> from dummypy import OneHotEncoder
+	>>> from dummyPy import OneHotEncoder
 	>>> import pandas as pd
 	>>> encoder = OneHotEncoder(categorical_columns=["Pclass", "Sex", "Embarked"])
 	>>> encoder.fit(file_path="titanic.csv", chunksize=100,
-					usecols=["Pclass", "Sex", "Age", "Fare", "Embarked"], na_values=str)
-	>>> data = pd.read_csv("titanic.csv", usecols=["Pclass", "Sex", "Age", "Fare", "Embarked"])
+					usecols=["Pclass", "Sex", "Age", "Fare", "Embarked"])
+	>>> data = pd.read_csv("titanic.csv", usecols=["Pclass", "Sex", "Age", "Fare", "Embarked"],
+	                       keep_default_na=False, dtype=str)
 	>>> X = encoder.transform(data)
 	>>> X
 
-	array([[ 0.,  0.,  1., ...,  0.,  0.,  1.],
-	       [ 1.,  0.,  0., ...,  1.,  0.,  0.],
-	       [ 0.,  0.,  1., ...,  0.,  0.,  1.],
+	array([[0.0, 0.0, 1.0, ..., 0.0, 0.0, 1.0],
+	       [1.0, 0.0, 0.0, ..., 1.0, 0.0, 0.0],
+	       [0.0, 0.0, 1.0, ..., 0.0, 0.0, 1.0],
 	       ..., 
-	       [ 0.,  0.,  1., ...,  0.,  0.,  1.],
-	       [ 1.,  0.,  0., ...,  1.,  0.,  0.],
-	       [ 0.,  0.,  1., ...,  0.,  1.,  0.]])
+	       [0.0, 0.0, 1.0, ..., 0.0, 0.0, 1.0],
+	       [1.0, 0.0, 0.0, ..., 1.0, 0.0, 0.0],
+	       [0.0, 0.0, 1.0, ..., 0.0, 1.0, 0.0]], dtype=object)
 	"""
 	def __init__(self, categorical_columns):
 		"""
@@ -48,7 +49,7 @@ class OneHotEncoder():
 
 		self.categorical_columns = categorical_columns
 		self.unique_vals = defaultdict(set)
-		self.encoders = {column_name : LabelBinarizer() for column_name in categorical_columns}
+		self.encoders = {column_name : CategoricalEncoder() for column_name in categorical_columns}
 
 	def _update_unique_vals(self, data_chunk):
 		for column_name in self.categorical_columns:
@@ -56,7 +57,7 @@ class OneHotEncoder():
 
 	def _fit_encoders(self):
 		for column_name in self.categorical_columns:
-			self.encoders[column_name].fit(list(self.unique_vals[column_name]))
+			self.encoders[column_name].fit(np.array(list(self.unique_vals[column_name])).reshape(-1, 1))
 
 	def fit(self, file_path, chunksize=1000, **kwargs):	
 		"""
@@ -86,7 +87,7 @@ class OneHotEncoder():
 			raise ValueError("One or more of the specified categorical columns "\
 							  "is not present in the given data.")
 
-		data = pd.read_csv(file_path, chunksize=chunksize, **kwargs)
+		data = pd.read_csv(file_path, chunksize=chunksize, dtype=str, keep_default_na=False, **kwargs)
 
 		for data_chunk in data:
 			self._update_unique_vals(data_chunk)
@@ -97,15 +98,15 @@ class OneHotEncoder():
 		"""
 		This method is used to convert the categorical values in your data into
 		one hot encoded vectors. It convets the categorical columns in the data
-		to one hot encoded columns and leaves the continuous variable cloumns as it is.
+		to one hot encoded columns and leaves the continuous variable columns as it is.
 
 		Parameters
 		----------
 		data: pandas data frame
-			The data frame obhect that needs to be transformed.
+			The data frame object that needs to be transformed.
 		"""
-		transformed_data = [self.encoders[column_name].transform(data[column_name]) 
+		transformed_data = [self.encoders[column_name].transform(data[column_name].values.reshape(-1, 1)).todense()
 						    if column_name in self.categorical_columns
-						    else data[column_name].reshape(-1, 1)
+						    else data[column_name].values.reshape(-1, 1)
 						    for column_name in data.columns]
-		return(np.concatenate(transformed_data, axis=1))
+		return(np.array(np.concatenate(transformed_data, axis=1)))
