@@ -2,7 +2,44 @@ from collections import defaultdict
 
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import CategoricalEncoder
+from scipy.sparse import coo_matrix
+
+class Encoder():
+    """
+    Helper class to encode levels of a categorical Variable.
+    """
+    def __init__(self):
+        self.column_mapper = None
+
+    def fit(self, levels):
+        """
+        Parameters
+        ----------
+        levels: set
+            Unique levels of the categorical variable.
+        """
+        self.column_mapper = {x:i for i,x in enumerate(levels)}
+
+    def transform(self, column_data):
+        """
+        Parameters
+        ----------
+        columns_data: pandas Series object
+        """
+        no_of_rows = column_data.shape[0]
+        no_of_columns = len(self.column_mapper)
+
+        # Filter out values that were not present during fit.
+        column_data = [x for x in column_data if x in self.column_mapper]
+
+        rows = np.arange(len(column_data))
+        columns = np.array([self.column_mapper[x] for x in column_data])
+        data = np.ones(len(column_data))
+
+        print(rows.shape, columns.shape, data.shape)
+
+        return(coo_matrix((data, (rows, columns)),
+                          shape=(no_of_rows, no_of_columns)))
 
 
 class OneHotEncoder():
@@ -69,7 +106,7 @@ class OneHotEncoder():
 
         self.categorical_columns = categorical_columns
         self.unique_vals = defaultdict(set)
-        self.encoders = {column_name: CategoricalEncoder() for column_name in categorical_columns}
+        self.encoders = {column_name: Encoder() for column_name in categorical_columns}
 
     def _update_unique_vals(self, data):
         for column_name in self.categorical_columns:
@@ -78,7 +115,7 @@ class OneHotEncoder():
 
     def _fit_encoders(self):
         for column_name in self.categorical_columns:
-            self.encoders[column_name].fit(np.array(list(self.unique_vals[column_name])).reshape(-1, 1))
+            self.encoders[column_name].fit(self.unique_vals[column_name])
 
     def fit(self, data):    
         """
@@ -116,7 +153,7 @@ class OneHotEncoder():
         data: pandas data frame
             The data frame object that needs to be transformed.
         """
-        transformed_data = [self.encoders[column_name].transform(data[column_name].values.reshape(-1, 1)).todense()
+        transformed_data = [self.encoders[column_name].transform(data[column_name]).toarray()
                             if column_name in self.categorical_columns
                             else data[column_name].values.reshape(-1, 1)
                             for column_name in data.columns]
