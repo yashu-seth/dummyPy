@@ -18,7 +18,7 @@ class Encoder():
         levels: set
             Unique levels of the categorical variable.
         """
-        self.column_mapper = {x:i for i,x in enumerate(levels)}
+        self.column_mapper = {x:i for i,x in enumerate(sorted(levels))}
 
     def transform(self, column_data):
         """
@@ -26,20 +26,12 @@ class Encoder():
         ----------
         columns_data: pandas Series object
         """
-        no_of_rows = column_data.shape[0]
-        no_of_columns = len(self.column_mapper)
+        row_cols = [(i, self.column_mapper[x])
+                    for i,x in enumerate(column_data) if x in self.column_mapper]
+        data = np.ones(len(row_cols))
 
-        # Filter out values that were not present during fit.
-        column_data = [x for x in column_data if x in self.column_mapper]
-
-        rows = np.arange(len(column_data))
-        columns = np.array([self.column_mapper[x] for x in column_data])
-        data = np.ones(len(column_data))
-
-        print(rows.shape, columns.shape, data.shape)
-
-        return(coo_matrix((data, (rows, columns)),
-                          shape=(no_of_rows, no_of_columns)))
+        return(coo_matrix((data, zip(*row_cols)),
+                          shape=(column_data.shape[0], len(self.column_mapper))))
 
 
 class OneHotEncoder():
@@ -60,9 +52,8 @@ class OneHotEncoder():
     >>> from dummyPy import OneHotEncoder
     >>> import pandas as pd
     >>> encoder = OneHotEncoder(categorical_columns=["Pclass", "Sex", "Embarked"])
-    >>> data = pd.read_csv("titanic.csv", usecols=["Pclass", "Sex", "Age", "Fare", "Embarked"],
-                           keep_default_na=False, dtype=str)
-    >>> data.shapes
+    >>> data = pd.read_csv("titanic.csv", usecols=["Pclass", "Sex", "Age", "Fare", "Embarked"])
+    >>> data.shape
     (891, 5)
     >>> encoder.fit(data)
     >>> X = encoder.transform(data)
@@ -77,8 +68,9 @@ class OneHotEncoder():
            [1.0, 0.0, 0.0, ..., 1.0, 0.0, 0.0],
            [0.0, 0.0, 1.0, ..., 0.0, 1.0, 0.0]], dtype=object)
 
-    >>> chunked_data = pd.read_csv("titanic.csv", usecols=["Pclass", "Sex", "Age", "Fare", "Embarked"],
-                                   keep_default_na=False, dtype=str, chunksize)
+    >>> chunked_data = pd.read_csv("titanic.csv",
+                                    usecols=["Pclass", "Sex", "Age", "Fare", "Embarked"],
+                                    chunksize=10)
     >>> encoder2 = OneHotEncoder(categorical_columns=["Pclass", "Sex", "Embarked"])
     >>> encoder2.fit(chunked_data)
     >>> X = encoder2.transform(data)
@@ -157,7 +149,7 @@ class OneHotEncoder():
                             if column_name in self.categorical_columns
                             else data[column_name].values.reshape(-1, 1)
                             for column_name in data.columns]
-        return(np.array(np.concatenate(transformed_data, axis=1)))
+        return(np.array(np.concatenate(transformed_data, axis=1), dtype=object))
 
     def fit_transform(self, data):
         """
