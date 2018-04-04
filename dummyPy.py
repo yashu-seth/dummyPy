@@ -33,6 +33,9 @@ class Encoder():
         return(coo_matrix((data, zip(*row_cols)),
                           shape=(column_data.shape[0], len(self.column_mapper))))
 
+    def __eq__(self, other):
+        return self.column_mapper == other.column_mapper
+
 
 class OneHotEncoder():
     """
