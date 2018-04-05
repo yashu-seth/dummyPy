@@ -1,3 +1,3 @@
-from .dummyPy import OneHotEncoder
+from .dummyPy import OneHotEncoder, Encoder
 
-__all__ = ["OneHotEncoder"]
+__all__ = ["OneHotEncoder", "Encoder"]
