@@ -137,7 +137,7 @@ class OneHotEncoder():
 
         self._fit_encoders() 
 
-    def transform(self, data):
+    def transform(self, data, dtype="pd"):
         """
         This method is used to convert the categorical values in your data into
         one hot encoded vectors. It convets the categorical columns in the data
@@ -147,12 +147,34 @@ class OneHotEncoder():
         ----------
         data: pandas data frame
             The data frame object that needs to be transformed.
+
+        dtype: string 
+            "pd" - This will return a pandas dataframe.
+            "np" - This will return a numpy array.
         """
         transformed_data = [self.encoders[column_name].transform(data[column_name]).toarray()
                             if column_name in self.categorical_columns
                             else data[column_name].values.reshape(-1, 1)
                             for column_name in data.columns]
-        return(np.array(np.concatenate(transformed_data, axis=1), dtype=object))
+        transformed_np_array = np.array(np.concatenate(transformed_data, axis=1), dtype=object)
+
+        if dtype == "np":
+            return(transformed_np_array)
+        else:
+
+            # For the titanic example, the Nested List mentioned below would look like -
+            # [["Pclass_0", "Pclass_1", "Pclass_2"], ["Sex_female", "Sex_male"], ["Age"], ["Fare"],
+            #  ["Embarked_Q", "Embarked_nan", "Embarked_S", "Embarked_C"]]
+            # It is flattened later.
+
+            transformed_data_col_names = [item for sublist in 
+                                          # Nested List
+                                          [[column_name] if column_name not in self.categorical_columns
+                                          else [column_name + "_" + str(x) for x in sorted(self.unique_vals[column_name])]
+                                          for column_name in data.columns]
+
+                                          for item in sublist]
+            return(pd.DataFrame(transformed_np_array, columns=transformed_data_col_names))
 
     def fit_transform(self, data):
         """
