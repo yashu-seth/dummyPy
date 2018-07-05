@@ -115,6 +115,13 @@ class TestOneHotEncoder(unittest.TestCase):
 
         np_test.assert_array_equal(one_hot_encoder.transform(self.data.head()),
                                    transformed_data)
+    def test_transform_coo(self):
+        one_hot_encoder = OneHotEncoder(categorical_columns=["Pclass", "Sex", "Embarked"])
+        one_hot_encoder.fit(self.data)
+        coo_matrix_1 = one_hot_encoder.transform(self.data.head(), dtype="coo")
+        coo_matrix_2 = coo_matrix(one_hot_encoder.transform(self.data.head(), dtype="np"))
+        np_test.assert_array_equal(coo_matrix_1.toarray(), 
+                                   coo_matrix_2.toarray())
 
     def test_fit_transform(self):
         one_hot_encoder1 = OneHotEncoder(categorical_columns=["Pclass", "Sex", "Embarked"])
@@ -124,3 +131,4 @@ class TestOneHotEncoder(unittest.TestCase):
 
         np_test.assert_array_equal(one_hot_encoder1.fit_transform(self.data.head()),
                                    one_hot_encoder2.transform(self.data.head()))
+
