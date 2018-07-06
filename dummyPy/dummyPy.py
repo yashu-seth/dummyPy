@@ -2,7 +2,7 @@ from collections import defaultdict
 
 import numpy as np
 import pandas as pd
-from scipy.sparse import coo_matrix
+from scipy.sparse import coo_matrix, hstack
 
 class Encoder():
     """
@@ -149,17 +149,20 @@ class OneHotEncoder():
             The data frame object that needs to be transformed.
 
         dtype: string 
-            "pd" - This will return a pandas dataframe.
-            "np" - This will return a numpy array.
+            "pd"  - This will return a pandas dataframe.
+            "np"  - This will return a numpy array.
+            "coo" - This will rerurn scipy.sparse.coo_matrix, which is memory-efficient 
+                    for categorical variable of which number of unique values are large.
         """
-        transformed_data = [self.encoders[column_name].transform(data[column_name]).toarray()
+        transformed_coo_matrix = hstack([self.encoders[column_name].transform(data[column_name])
                             if column_name in self.categorical_columns
-                            else data[column_name].values.reshape(-1, 1)
-                            for column_name in data.columns]
-        transformed_np_array = np.array(np.concatenate(transformed_data, axis=1), dtype=object)
+                            else coo_matrix(data[column_name].values.reshape(-1, 1))
+                            for column_name in data.columns])
 
         if dtype == "np":
-            return(transformed_np_array)
+            return(transformed_coo_matrix.toarray())
+        elif dtype == "coo":
+            return(transformed_coo_matrix)
         else:
 
             # For the titanic example, the Nested List mentioned below would look like -
@@ -174,7 +177,7 @@ class OneHotEncoder():
                                           for column_name in data.columns]
 
                                           for item in sublist]
-            return(pd.DataFrame(transformed_np_array, columns=transformed_data_col_names))
+            return(pd.DataFrame(transformed_coo_matrix.toarray(), columns=transformed_data_col_names))
 
     def fit_transform(self, data):
         """
