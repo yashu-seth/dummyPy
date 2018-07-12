@@ -18,7 +18,7 @@ class Encoder():
         levels: set
             Unique levels of the categorical variable.
         """
-        self.column_mapper = {x:i for i,x in enumerate(sorted(levels))}
+        self.column_mapper = {x:i for i,x in enumerate(levels)}
 
     def transform(self, column_data):
         """
