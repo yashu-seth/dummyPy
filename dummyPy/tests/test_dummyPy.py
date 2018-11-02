@@ -5,8 +5,11 @@ import numpy as np
 import pandas as pd
 import numpy.testing as np_test
 from scipy.sparse import coo_matrix
-
+from os.path import join, dirname, realpath
 from dummyPy import Encoder, OneHotEncoder
+
+
+titanic_path = join(dirname(realpath(__file__)), "titanic.csv")
 
 
 class TestEncoder(unittest.TestCase):
@@ -14,9 +17,7 @@ class TestEncoder(unittest.TestCase):
         encoder = Encoder()
         self.assertEqual(encoder.column_mapper, None)
 
-        levels = set()
-        for color in ["red", "blue", "yellow"]:
-            levels.add(color)
+        levels = {"red", "blue", "yellow"}
 
         encoder.fit(levels)
         self.assertEqual(encoder.column_mapper,
@@ -35,9 +36,9 @@ class TestEncoder(unittest.TestCase):
 
 class TestOneHotEncoder(unittest.TestCase):
     def setUp(self):
-        self.data = pd.read_csv("titanic.csv",
+        self.data = pd.read_csv(titanic_path,
                                 usecols=["Pclass", "Sex", "Age", "Fare", "Embarked"])
-        self.chunked_data = pd.read_csv("titanic.csv",
+        self.chunked_data = pd.read_csv(titanic_path,
                                         usecols=["Pclass", "Sex", "Age", "Fare", "Embarked"],
                                         chunksize=10)
 
@@ -107,20 +108,21 @@ class TestOneHotEncoder(unittest.TestCase):
         one_hot_encoder = OneHotEncoder(categorical_columns=["Pclass", "Sex", "Embarked"])
         one_hot_encoder.fit(self.data)
 
-        transformed_data = np.array([[0.0, 0.0, 1.0, 0.0, 1.0, 22.0, 7.25, 0.0, 0.0, 0.0, 1.0],
-                                     [1.0, 0.0, 0.0, 1.0, 0.0, 38.0, 71.2833, 0.0, 1.0, 0.0, 0.0],
-                                     [0.0, 0.0, 1.0, 1.0, 0.0, 26.0, 7.925, 0.0, 0.0, 0.0, 1.0],
-                                     [1.0, 0.0, 0.0, 1.0, 0.0, 35.0, 53.1, 0.0, 0.0, 0.0, 1.0],
-                                     [0.0, 0.0, 1.0, 0.0, 1.0, 35.0, 8.05, 0.0, 0.0, 0.0, 1.0]])
+        transformed_data = np.array([[0., 0., 1., 0., 1., 22., 7.25, 0., 0., 1., 0.],
+                                     [1., 0., 0., 1., 0., 38., 71.2833,  1., 0., 0., 0],
+                                     [0., 0., 1., 1., 0., 26., 7.925, 0., 0., 1., 0.],
+                                     [1., 0., 0., 1., 0., 35., 53.1, 0., 0., 1., 0.],
+                                     [0., 0., 1., 0., 1., 35., 8.05, 0., 0., 1., 0.]])
 
         np_test.assert_array_equal(one_hot_encoder.transform(self.data.head()),
                                    transformed_data)
+
     def test_transform_coo(self):
         one_hot_encoder = OneHotEncoder(categorical_columns=["Pclass", "Sex", "Embarked"])
         one_hot_encoder.fit(self.data)
         coo_matrix_1 = one_hot_encoder.transform(self.data.head(), dtype="coo")
         coo_matrix_2 = coo_matrix(one_hot_encoder.transform(self.data.head(), dtype="np"))
-        np_test.assert_array_equal(coo_matrix_1.toarray(), 
+        np_test.assert_array_equal(coo_matrix_1.toarray(),
                                    coo_matrix_2.toarray())
 
     def test_fit_transform(self):
@@ -132,3 +134,12 @@ class TestOneHotEncoder(unittest.TestCase):
         np_test.assert_array_equal(one_hot_encoder1.fit_transform(self.data.head()),
                                    one_hot_encoder2.transform(self.data.head()))
 
+    def test_save_load(self):
+        one_hot_encoder1 = OneHotEncoder(categorical_columns=["Pclass", "Sex", "Embarked"])
+        one_hot_encoder1.fit(self.data.head())
+        one_hot_encoder1.save("test_save_load.p")
+
+        one_hot_encoder2 = OneHotEncoder(file_name="test_save_load.p")
+
+        np_test.assert_array_equal(one_hot_encoder1.transform(self.data.head()),
+                                   one_hot_encoder2.transform(self.data.head()))

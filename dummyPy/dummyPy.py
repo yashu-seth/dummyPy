@@ -1,10 +1,22 @@
 from collections import defaultdict
+from pickle import load, dump
 
 import numpy as np
 import pandas as pd
 from scipy.sparse import coo_matrix, hstack
 
-class Encoder():
+
+def sort_mixed(levels):
+    try:
+        return sorted(levels)
+    except TypeError:
+        str_list = [l for l in levels if isinstance(l, str)]
+        other_list = [l for l in levels if isinstance(l, (int, float)) and not np.isnan(l)]
+        nan_append = [l for l in levels if isinstance(l, (int, float)) and np.isnan(l)]
+        return sorted(str_list) + sorted(other_list) + nan_append
+
+
+class Encoder:
     """
     Helper class to encode levels of a categorical Variable.
     """
@@ -18,26 +30,28 @@ class Encoder():
         levels: set
             Unique levels of the categorical variable.
         """
-        self.column_mapper = {x:i for i,x in enumerate(levels)}
+        self.column_mapper = {x: i for i, x in enumerate(sort_mixed(levels))}
 
     def transform(self, column_data):
         """
         Parameters
         ----------
-        columns_data: pandas Series object
+        column_data: pandas Series object
         """
         row_cols = [(i, self.column_mapper[x])
-                    for i,x in enumerate(column_data) if x in self.column_mapper]
+                    for i, x in enumerate(column_data) if x in self.column_mapper]
         data = np.ones(len(row_cols))
 
-        return(coo_matrix((data, zip(*row_cols)),
-                          shape=(column_data.shape[0], len(self.column_mapper))))
+        if len(row_cols) == 0:
+            return coo_matrix((column_data.shape[0], len(self.column_mapper)))
+
+        return coo_matrix((data, zip(*row_cols)), shape=(column_data.shape[0], len(self.column_mapper)))
 
     def __eq__(self, other):
         return self.column_mapper == other.column_mapper
 
 
-class OneHotEncoder():
+class OneHotEncoder:
     """
     A One Hot Encoder class that converts the categorical variables in a data frame
     to one hot encoded variables. It can also handle large data that is too big to fit
@@ -89,7 +103,7 @@ class OneHotEncoder():
            [0.0, 0.0, 1.0, ..., 0.0, 1.0, 0.0]], dtype=object)
     
     """
-    def __init__(self, categorical_columns):
+    def __init__(self, categorical_columns=None, file_name=None):
         """
         Parameters
         ----------
@@ -97,11 +111,20 @@ class OneHotEncoder():
         categorical_columns: list
             A list of the names of the categorical varibales in the data. All these columns
             must have dtype as string.
+        file_name: string
+            The file name to load a saved encoder from.
         """
-
-        self.categorical_columns = categorical_columns
-        self.unique_vals = defaultdict(set)
-        self.encoders = {column_name: Encoder() for column_name in categorical_columns}
+        if file_name is None:
+            if categorical_columns is None:
+                raise UserWarning("Either the categorical columns must be defined "
+                                  "or a file_name for a saved encoder must be given")
+            self.categorical_columns = categorical_columns
+            self.unique_vals = defaultdict(set)
+            self.encoders = {column_name: Encoder() for column_name in categorical_columns}
+        elif isinstance(file_name, str):
+            self.load(file_name)
+        else:
+            raise UserWarning("The file name to load a saved encoder should be a string to a readable file")
 
     def _update_unique_vals(self, data):
         for column_name in self.categorical_columns:
@@ -155,14 +178,14 @@ class OneHotEncoder():
                     for categorical variable of which number of unique values are large.
         """
         transformed_coo_matrix = hstack([self.encoders[column_name].transform(data[column_name])
-                            if column_name in self.categorical_columns
-                            else coo_matrix(data[column_name].values.reshape(-1, 1))
-                            for column_name in data.columns])
+                                         if column_name in self.categorical_columns
+                                         else coo_matrix(data[column_name].values.reshape(-1, 1))
+                                         for column_name in data.columns])
 
         if dtype == "np":
-            return(transformed_coo_matrix.toarray())
+            return transformed_coo_matrix.toarray()
         elif dtype == "coo":
-            return(transformed_coo_matrix)
+            return transformed_coo_matrix
         else:
 
             # For the titanic example, the Nested List mentioned below would look like -
@@ -173,11 +196,11 @@ class OneHotEncoder():
             transformed_data_col_names = [item for sublist in 
                                           # Nested List
                                           [[column_name] if column_name not in self.categorical_columns
-                                          else [column_name + "_" + str(x) for x in sorted(self.unique_vals[column_name])]
-                                          for column_name in data.columns]
-
+                                           else ["{}_{}".format(column_name, x)
+                                                 for x in sort_mixed(self.unique_vals[column_name])]
+                                           for column_name in data.columns]
                                           for item in sublist]
-            return(pd.DataFrame(transformed_coo_matrix.toarray(), columns=transformed_data_col_names))
+            return pd.DataFrame(transformed_coo_matrix.toarray(), columns=transformed_data_col_names)
 
     def fit_transform(self, data):
         """
@@ -192,4 +215,32 @@ class OneHotEncoder():
             A pandas data frame.
         """
         self.fit(data)
-        return(self.transform(data))
+        return self.transform(data)
+
+    def save(self, file_name):
+        """
+        Saves the encoder as a pickled binary file with the path file_name
+        :param file_name: string
+            The file name to use for the saved encoder.
+        :return:
+        """
+        with open(file_name, "wb") as file:
+            d = {
+                "categorical_columns": self.categorical_columns,
+                "unique_vals": self.unique_vals,
+                "encoders": self.encoders
+            }
+            dump(d, file)
+
+    def load(self, file_name):
+        """
+        Loads a pickled encoder from a file with the path file_name
+        :param file_name: string
+            The file name to load the saved encoder from.
+        :return:
+        """
+        with open(file_name, "rb") as file:
+            d = load(file)
+            self.categorical_columns = d["categorical_columns"]
+            self.unique_vals = d["unique_vals"]
+            self.encoders = d["encoders"]
